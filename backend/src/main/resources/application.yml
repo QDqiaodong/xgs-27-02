@@ -1,0 +1,37 @@
+server:
+  port: ${BACKEND_PORT:8182}
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3398}/${MYSQL_DATABASE:review_db}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:admin}
+    password: ${MYSQL_PASSWORD:password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+  
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6471}
+    timeout: 6000ms
+  
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+jwt:
+  secret: ${JWT_SECRET:script-review-secret-key-256-bit-minimum-length-for-security}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+logging:
+  level:
+    com.example.scriptreview: ${LOG_LEVEL:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL:WARN}

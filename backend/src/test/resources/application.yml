@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:recusal;MODE=MySQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=20000;NON_KEYWORDS=USER
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  sql:
+    init:
+      mode: never
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+jwt:
+  secret: test-secret-key-256-bit-minimum-length-for-security
+  expiration: 86400000

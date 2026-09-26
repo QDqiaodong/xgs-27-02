@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
