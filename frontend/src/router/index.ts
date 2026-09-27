@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/script/:id/masking',
+    name: 'MaskingMap',
+    component: () => import('@/views/MaskingMap.vue'),
+    meta: { requiresAuth: true, roles: ['ADMIN'] }
+  },
+  {
     path: '/script/:id/score',
     name: 'ScoreEntry',
     component: () => import('@/views/ScoreEntry.vue'),

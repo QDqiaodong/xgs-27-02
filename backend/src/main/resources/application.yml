@@ -1,5 +1,9 @@
 server:
   port: ${BACKEND_PORT:8182}
+  servlet:
+    encoding:
+      charset: UTF-8
+      force-response: true
 
 spring:
   datasource:
@@ -30,6 +34,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET:script-review-secret-key-256-bit-minimum-length-for-security}
   expiration: ${JWT_EXPIRATION:86400000}
+
+# 脱敏代号生成盐：仅用于让不同脚本中的代号不可横向关联，不替代任何访问控制
+masking:
+  secret: ${MASKING_SECRET:xgs-27-masking-salt-2026}
 
 logging:
   level:

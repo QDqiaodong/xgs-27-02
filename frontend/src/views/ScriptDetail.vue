@@ -51,6 +51,11 @@ const handleScore = () => {
   router.push(`/script/${scriptId}/score`)
 }
 
+// 打印预览：页面数据已是服务端脱敏结果，打印输出与屏幕一致，不会泄露原稿
+const handlePrint = () => {
+  window.print()
+}
+
 const handleGrade = async () => {
   if (validScores.value.length < 2) {
     ElMessage.warning('至少需要2位评委的有效评分才能进行分级')
@@ -166,10 +171,20 @@ onMounted(loadScript)
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">脚本详情</h2>
-        <p class="text-gray-500 mt-1">查看脚本完整信息和评审记录</p>
+        <h2 class="text-2xl font-bold text-gray-800">
+          脚本详情
+          <ElTag v-if="script?.masked" type="warning" size="small" class="ml-2 align-middle">双盲脱敏视图</ElTag>
+        </h2>
+        <p class="text-gray-500 mt-1">
+          {{ script?.masked ? '投稿人身份信息已按规则替换为稳定代号' : '查看脚本完整信息和评审记录' }}
+        </p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 no-print">
+        <ElButton v-if="currentUser?.role === 'ADMIN'" type="danger" plain
+          @click="router.push(`/script/${scriptId}/masking`)">
+          脱敏映射核对<span v-if="script?.pendingClueCount">（{{ script.pendingClueCount }}待核对）</span>
+        </ElButton>
+        <ElButton @click="handlePrint">打印预览</ElButton>
         <ElButton type="warning" @click="openRecusal"
           v-if="currentUser?.role === 'JUDGE' || currentUser?.role === 'ADMIN'">
           申报回避
@@ -186,6 +201,14 @@ onMounted(loadScript)
     <div v-if="script?.status === 'PENDING_SUPPLEMENT'"
       class="bg-purple-50 border border-purple-200 text-purple-700 rounded-lg px-4 py-3 text-sm">
       该脚本因评委回避进入待补评状态：旧等级已撤销，待替补评委评分、有效评分重新达到 2 份后方可再次分级。
+    </div>
+
+    <!-- 脱敏提示：评委/查看员视角 -->
+    <div v-if="script?.masked"
+      class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 text-sm no-print">
+      当前为双盲脱敏视图：投稿人姓名、机构、联系方式等身份线索已替换为稳定代号；
+      <span v-if="script.pendingClueCount">其中 {{ script.pendingClueCount }} 处可疑片段显示为【待核对】，待管理员核对后更新。</span>
+      <span v-else>全部线索已完成核对。</span>
     </div>
 
     <div v-if="script" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -210,11 +233,17 @@ onMounted(loadScript)
             </div>
             <div class="flex">
               <span class="w-24 text-gray-500">作者</span>
-              <span>{{ script.author || '未填写' }}</span>
+              <span>
+                {{ script.author || '未填写' }}
+                <span v-if="script.masked && script.author" class="text-xs text-yellow-600">（代号）</span>
+              </span>
             </div>
             <div class="flex">
               <span class="w-24 text-gray-500">来源机构</span>
-              <span>{{ script.source || '未填写' }}</span>
+              <span>
+                {{ script.source || '未填写' }}
+                <span v-if="script.masked && script.source" class="text-xs text-yellow-600">（代号）</span>
+              </span>
             </div>
             <div class="flex">
               <span class="w-24 text-gray-500">状态</span>
@@ -235,7 +264,11 @@ onMounted(loadScript)
             </div>
             <div class="flex flex-col">
               <span class="w-24 text-gray-500">描述</span>
-              <p class="mt-1">{{ script.description || '无' }}</p>
+              <p class="mt-1 whitespace-pre-wrap">{{ script.description || '无' }}</p>
+            </div>
+            <div class="flex flex-col">
+              <span class="w-24 text-gray-500">附件说明</span>
+              <p class="mt-1 whitespace-pre-wrap">{{ script.attachmentNote || '无' }}</p>
             </div>
           </div>
         </ElCard>
@@ -354,3 +387,19 @@ onMounted(loadScript)
     </ElDialog>
   </div>
 </template>
+
+<style>
+/* 打印预览：隐藏导航与操作按钮；页面数据本身已是服务端脱敏结果，打印内容不会携带原稿 */
+@media print {
+  aside,
+  .no-print,
+  .el-dialog__wrapper,
+  .el-overlay {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+}
+</style>

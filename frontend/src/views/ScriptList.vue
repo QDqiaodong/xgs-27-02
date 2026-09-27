@@ -277,7 +277,17 @@ onMounted(() => {
 
       <ElTable :data="scripts" v-loading="loading" border stripe>
         <ElTableColumn prop="id" label="ID" width="80" />
-        <ElTableColumn prop="title" label="脚本标题" min-width="200" />
+        <ElTableColumn label="脚本标题" min-width="200">
+          <template #default="{ row }">
+            <span>{{ row.title }}</span>
+            <span v-if="row.masked"
+              class="ml-1 px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">已脱敏</span>
+            <span v-if="row.pendingClueCount"
+              class="ml-1 px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700">
+              {{ row.pendingClueCount }}处待核对
+            </span>
+          </template>
+        </ElTableColumn>
         <ElTableColumn prop="genre" label="题材" width="100" />
         <ElTableColumn prop="duration" label="时长(秒)" width="100" />
         <ElTableColumn prop="targetAudience" label="目标受众" width="120" />

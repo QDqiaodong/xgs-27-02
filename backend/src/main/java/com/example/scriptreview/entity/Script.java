@@ -35,6 +35,9 @@ public class Script {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "attachment_note", columnDefinition = "TEXT")
+    private String attachmentNote;
+
     @Column(name = "author", length = 100)
     private String author;
 

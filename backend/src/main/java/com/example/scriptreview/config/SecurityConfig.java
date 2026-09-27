@@ -27,6 +27,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/health/**").permitAll()
+                // 脱敏映射（原稿/线索/代号对照）仅管理员可达，必须先于 /api/scripts/** 声明
+                .requestMatchers("/api/scripts/*/masking", "/api/scripts/*/masking/**").hasRole("ADMIN")
                 .requestMatchers("/api/scripts/**").hasAnyRole("ADMIN", "JUDGE", "VIEWER")
                 .requestMatchers("/api/judges/**").hasAnyRole("ADMIN", "JUDGE")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/scores/script/**")

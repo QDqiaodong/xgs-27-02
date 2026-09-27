@@ -5,8 +5,13 @@ export interface ScriptResponse {
   duration: number
   targetAudience: string
   description: string
+  attachmentNote?: string
   author?: string
   source?: string
+  /** true=已脱敏(评委/查看员视角) false=管理员看到的原稿 */
+  masked?: boolean
+  /** 待管理员核对的模糊线索数 */
+  pendingClueCount?: number
   status: 'PENDING' | 'REVIEWING' | 'PENDING_SUPPLEMENT' | 'GRADED'
   grade: string | null
   totalScore: number | null
@@ -21,8 +26,48 @@ export interface CreateScriptRequest {
   duration: number
   targetAudience: string
   description?: string
+  attachmentNote?: string
   author?: string
   source?: string
+}
+
+export type ClueType = 'NAME' | 'PHONE' | 'EMAIL' | 'ORG' | 'SOCIAL'
+export type ClueFieldOrigin = 'AUTHOR' | 'SOURCE' | 'TITLE' | 'DESCRIPTION' | 'ATTACHMENT'
+export type ClueStatus = 'CONFIRMED' | 'PENDING' | 'CHARACTER'
+
+export interface MaskingFields {
+  title: string
+  author: string | null
+  source: string | null
+  description: string | null
+  attachmentNote: string | null
+}
+
+export interface MaskingIdentityItem {
+  id: number
+  aliasCode: string
+  kind: 'SUBMITTER' | 'RELATED'
+}
+
+export interface MaskingClueItem {
+  id: number
+  clueType: ClueType
+  fieldOrigin: ClueFieldOrigin
+  originalText: string
+  status: ClueStatus
+  identityId: number | null
+  aliasCode: string | null
+  confirmedByName: string | null
+  confirmedAt: string | null
+}
+
+export interface MaskingMapResponse {
+  scriptId: number
+  original: MaskingFields
+  masked: MaskingFields
+  identities: MaskingIdentityItem[]
+  clues: MaskingClueItem[]
+  pendingCount: number
 }
 
 export interface JudgeResponse {

@@ -21,6 +21,7 @@ public class ScriptService {
 
     private final ScriptRepository scriptRepository;
     private final ScoreRepository scoreRepository;
+    private final MaskingService maskingService;
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
@@ -43,11 +44,14 @@ public class ScriptService {
                 .duration(request.getDuration())
                 .targetAudience(request.getTargetAudience())
                 .description(request.getDescription())
+                .attachmentNote(request.getAttachmentNote())
                 .author(request.getAuthor())
                 .source(request.getSource())
                 .status("PENDING")
                 .build();
         Script saved = scriptRepository.save(script);
+        // 录入即扫描身份线索，评委/查看员访问时只能得到脱敏版本
+        maskingService.refreshScriptClues(saved);
         return toResponse(saved);
     }
 
@@ -89,14 +93,19 @@ public class ScriptService {
                     script.setDuration(request.getDuration());
                     script.setTargetAudience(request.getTargetAudience());
                     script.setDescription(request.getDescription());
+                    script.setAttachmentNote(request.getAttachmentNote());
                     script.setAuthor(request.getAuthor());
                     script.setSource(request.getSource());
-                    return toResponse(scriptRepository.save(script));
+                    Script saved = scriptRepository.save(script);
+                    // 原稿变更后重扫线索；已核对的结论按（字段+类型+原文）保留
+                    maskingService.refreshScriptClues(saved);
+                    return toResponse(saved);
                 });
     }
 
     @Transactional
     public void deleteScript(Long id) {
+        maskingService.removeScriptData(id);
         scriptRepository.deleteById(id);
     }
 
@@ -119,13 +128,14 @@ public class ScriptService {
     }
 
     private ScriptResponse toResponse(Script script) {
-        return ScriptResponse.builder()
+        ScriptResponse response = ScriptResponse.builder()
                 .id(script.getId())
                 .title(script.getTitle())
                 .genre(script.getGenre())
                 .duration(script.getDuration())
                 .targetAudience(script.getTargetAudience())
                 .description(script.getDescription())
+                .attachmentNote(script.getAttachmentNote())
                 .author(script.getAuthor())
                 .source(script.getSource())
                 .status(script.getStatus())
@@ -135,5 +145,8 @@ public class ScriptService {
                 .createdAt(script.getCreatedAt() != null ? script.getCreatedAt().format(FORMATTER) : null)
                 .updatedAt(script.getUpdatedAt() != null ? script.getUpdatedAt().format(FORMATTER) : null)
                 .build();
+        // 双盲脱敏：管理员看到原稿，评委/查看员得到从原稿派生的脱敏版本
+        maskingService.applyToResponse(script, response);
+        return response;
     }
 }

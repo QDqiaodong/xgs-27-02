@@ -37,6 +37,7 @@ public class RecusalService {
     private final JudgeRepository judgeRepository;
     private final UserRepository userRepository;
     private final ScriptStatusService scriptStatusService;
+    private final MaskingService maskingService;
 
     // ============================ 申报 ============================
 
@@ -486,8 +487,9 @@ public class RecusalService {
     private RecusalApplicationResponse toResponse(RecusalApplication app, User currentUser) {
         boolean sensitive = canViewSensitive(app, currentUser);
 
+        // 摘要位置脱敏：非管理员看到的脚本标题与详情页脱敏结果一致
         String scriptTitle = scriptRepository.findById(app.getScriptId())
-                .map(Script::getTitle).orElse("未知脚本");
+                .map(maskingService::maskScriptTitle).orElse("未知脚本");
         String judgeName = judgeRepository.findById(app.getJudgeId())
                 .map(Judge::getName).orElse("未知评委");
         String submitterName = userRepository.findById(app.getSubmittedBy())
@@ -539,7 +541,7 @@ public class RecusalService {
 
     private ScriptAssignmentResponse assignmentToResponse(ScriptAssignment assignment) {
         String scriptTitle = scriptRepository.findById(assignment.getScriptId())
-                .map(Script::getTitle).orElse("未知脚本");
+                .map(maskingService::maskScriptTitle).orElse("未知脚本");
         String judgeName = judgeRepository.findById(assignment.getJudgeId())
                 .map(Judge::getName).orElse("未知评委");
         String assignedByName = userRepository.findById(assignment.getAssignedBy())

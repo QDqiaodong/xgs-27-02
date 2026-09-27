@@ -3,6 +3,8 @@ SET character_set_client = utf8mb4;
 SET character_set_connection = utf8mb4;
 SET character_set_results = utf8mb4;
 
+DROP TABLE IF EXISTS identity_clue;
+DROP TABLE IF EXISTS script_identity;
 DROP TABLE IF EXISTS recusal_review_log;
 DROP TABLE IF EXISTS recusal_application;
 DROP TABLE IF EXISTS audit_log;
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS script (
     duration INT NOT NULL COMMENT '时长(秒)',
     target_audience VARCHAR(100) NOT NULL,
     description TEXT,
+    attachment_note TEXT COMMENT '附件说明(与正文同等参与脱敏)',
     author VARCHAR(100),
     source VARCHAR(200),
     status VARCHAR(30) DEFAULT 'PENDING' COMMENT 'PENDING/REVIEWING/PENDING_SUPPLEMENT/GRADED',
@@ -139,6 +142,34 @@ CREATE TABLE IF NOT EXISTS recusal_review_log (
     KEY idx_review_log_app (application_id)
 );
 
+CREATE TABLE IF NOT EXISTS script_identity (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    alias_code VARCHAR(100) NOT NULL COMMENT '本脚本内的稳定代号, 跨脚本不可横向关联',
+    kind VARCHAR(20) NOT NULL DEFAULT 'RELATED' COMMENT 'SUBMITTER-投稿人/RELATED-其他相关身份',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_identity_script_alias (script_id, alias_code),
+    FOREIGN KEY (script_id) REFERENCES script(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS identity_clue (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    identity_id BIGINT NULL COMMENT '确认身份后关联; 待核对/正文角色时为空',
+    clue_type VARCHAR(20) NOT NULL COMMENT 'NAME/PHONE/EMAIL/ORG/SOCIAL',
+    field_origin VARCHAR(20) NOT NULL COMMENT 'AUTHOR/SOURCE/TITLE/DESCRIPTION/ATTACHMENT',
+    original_text VARCHAR(191) NOT NULL COMMENT '线索原文(仅管理员可见)',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'CONFIRMED/PENDING/CHARACTER',
+    confirmed_by BIGINT NULL,
+    confirmed_by_name VARCHAR(100) NULL,
+    confirmed_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_clue (script_id, field_origin, clue_type, original_text),
+    KEY idx_clue_script_status (script_id, status),
+    FOREIGN KEY (script_id) REFERENCES script(id) ON DELETE CASCADE,
+    FOREIGN KEY (identity_id) REFERENCES script_identity(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     action VARCHAR(100) NOT NULL,
@@ -178,12 +209,12 @@ INSERT IGNORE INTO judge (id, name, role, user_id, expertise, status) VALUES
 (4, '赵评委', 'JUDGE', 7, '旅游、搞笑、美食类脚本', 'ACTIVE'),
 (5, '孙评委', 'JUDGE', 8, '情感、搞笑、生活类脚本', 'ACTIVE');
 
-INSERT IGNORE INTO script (id, title, genre, duration, target_audience, description, author, source, status, grade, total_score, creator_id) VALUES
-(1, '职场逆袭记', '情感', 120, '职场人士', '讲述一个普通员工通过努力实现职场逆袭的故事，充满正能量。', '张三', '内部投稿', 'GRADED', 'A', 82.5, 1),
-(2, '美食探秘：深夜食堂', '美食', 90, '青年', '探访城市中的隐秘美食小店，记录美食背后的故事。', '李四', '外部投稿', 'GRADED', 'S', 94.3, 1),
-(3, '科技前沿：AI时代', '科技', 150, '青少年', '介绍人工智能的最新发展和应用，探讨未来科技趋势。', '王五', '内部投稿', 'GRADED', 'B', 68.2, 1),
-(4, '旅行日记：海岛奇遇', '旅游', 180, '青年', '记录海岛旅行的精彩瞬间，展现大自然的美丽。', '赵六', '外部投稿', 'REVIEWING', NULL, NULL, 1),
-(5, '搞笑日常：办公室趣事', '搞笑', 60, '青年', '讲述办公室里发生的搞笑故事，轻松幽默。', '孙七', '内部投稿', 'PENDING', NULL, NULL, 1);
+INSERT IGNORE INTO script (id, title, genre, duration, target_audience, description, attachment_note, author, source, status, grade, total_score, creator_id) VALUES
+(1, '职场逆袭记', '情感', 120, '职场人士', '讲述一个普通员工通过努力实现职场逆袭的故事，充满正能量。', NULL, '张三', '内部投稿', 'GRADED', 'A', 82.5, 1),
+(2, '美食探秘：深夜食堂', '美食', 90, '青年', '探访城市中的隐秘美食小店，记录美食背后的故事。', NULL, '李四', '外部投稿', 'GRADED', 'S', 94.3, 1),
+(3, '科技前沿：AI时代', '科技', 150, '青少年', '介绍人工智能的最新发展和应用，探讨未来科技趋势。', NULL, '王五', '内部投稿', 'GRADED', 'B', 68.2, 1),
+(4, '旅行日记：海岛奇遇', '旅游', 180, '青年', '记录海岛旅行的精彩瞬间。出镜人：赵六，联系电话 13912345678，邮箱 zhaoliu@example.com，抖音号：island_zl。剧情人物阿珠是岛上的向导，与投稿人无关。素材由蓝天文化传媒工作室提供场地支持。', '分镜表见附件 storyboard_v3.pdf，如有疑问联系作者赵六本人。', '赵六', '蓝天文化传媒工作室', 'REVIEWING', NULL, NULL, 1),
+(5, '搞笑日常：办公室趣事', '搞笑', 60, '青年', '讲述办公室里发生的搞笑故事，轻松幽默。', NULL, '孙七', '内部投稿', 'PENDING', NULL, NULL, 1);
 
 INSERT IGNORE INTO score (id, script_id, judge_id, creativity_score, commercial_score, difficulty_score, logic_score, audience_score, comment, is_extreme, valid) VALUES
 (1, 1, 1, 8, 7, 6, 9, 8, '故事结构完整，情感真挚，建议增加更多职场细节。', 0, 1),

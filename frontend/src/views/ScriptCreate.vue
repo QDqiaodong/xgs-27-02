@@ -10,7 +10,10 @@ const form = ref({
   genre: '',
   duration: 0,
   targetAudience: '',
-  description: ''
+  description: '',
+  attachmentNote: '',
+  author: '',
+  source: ''
 })
 
 const genres = [
@@ -71,7 +74,20 @@ const handleCancel = () => {
         </ElFormItem>
         
         <ElFormItem label="脚本描述">
-          <ElInput v-model="form.description" type="textarea" :rows="4" placeholder="请输入脚本描述" />
+          <ElInput v-model="form.description" type="textarea" :rows="4" placeholder="请输入脚本描述/正文" />
+        </ElFormItem>
+
+        <ElFormItem label="附件说明">
+          <ElInput v-model="form.attachmentNote" type="textarea" :rows="2"
+            placeholder="附件名称、备注等；其中的身份线索同样会被脱敏" />
+        </ElFormItem>
+
+        <ElFormItem label="作者">
+          <ElInput v-model="form.author" placeholder="投稿人姓名、联系方式（仅管理员可见，评委见代号）" />
+        </ElFormItem>
+
+        <ElFormItem label="来源机构">
+          <ElInput v-model="form.source" placeholder="投稿来源机构全称（仅管理员可见，评委见代号）" />
         </ElFormItem>
         
         <ElFormItem>

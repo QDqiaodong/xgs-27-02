@@ -25,6 +25,7 @@ public class StatisticsService {
     private final ScriptRepository scriptRepository;
     private final ScoreRepository scoreRepository;
     private final JudgeRepository judgeRepository;
+    private final MaskingService maskingService;
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public List<GradeDistributionResponse> getGradeDistribution() {
@@ -73,7 +74,8 @@ public class StatisticsService {
 
                     return LowScoreCommentResponse.builder()
                             .scriptId(script.getId())
-                            .scriptTitle(script.getTitle())
+                            // 摘要位置同样脱敏：查看员看到的标题与评委视图一致
+                            .scriptTitle(maskingService.maskScriptTitle(script))
                             .totalScore(script.getTotalScore())
                             .grade(script.getGrade())
                             .comments(comments)

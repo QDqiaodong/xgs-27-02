@@ -33,6 +33,7 @@ public class ScriptAssignmentService {
     private final JudgeRepository judgeRepository;
     private final UserRepository userRepository;
     private final ScriptStatusService scriptStatusService;
+    private final MaskingService maskingService;
 
     @Transactional
     public List<ScriptAssignmentResponse> assignScript(AssignScriptRequest request, Long assignedBy) {
@@ -128,8 +129,9 @@ public class ScriptAssignmentService {
     }
 
     private ScriptAssignmentResponse toResponse(ScriptAssignment assignment) {
+        // 摘要位置脱敏：评委看到的脚本标题与详情页脱敏结果一致
         String scriptTitle = scriptRepository.findById(assignment.getScriptId())
-                .map(Script::getTitle)
+                .map(maskingService::maskScriptTitle)
                 .orElse("未知脚本");
 
         String judgeName = judgeRepository.findById(assignment.getJudgeId())

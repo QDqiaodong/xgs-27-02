@@ -165,7 +165,10 @@ onMounted(loadData)
 
     <div v-if="script" class="bg-white rounded-xl shadow-sm p-6">
       <div class="mb-6 pb-6 border-b">
-        <h3 class="text-lg font-semibold">{{ script.title }}</h3>
+        <h3 class="text-lg font-semibold">
+          {{ script.title }}
+          <ElTag v-if="script.masked" type="warning" size="small" class="ml-2 align-middle">双盲脱敏视图</ElTag>
+        </h3>
         <div class="flex gap-4 mt-2 text-sm text-gray-500">
           <span>题材: {{ script.genre }}</span>
           <span>时长: {{ script.duration }}秒</span>

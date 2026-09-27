@@ -32,6 +32,9 @@ public class CreateScriptRequest {
     @Size(max = 2000, message = "描述不能超过2000个字符")
     private String description;
 
+    @Size(max = 2000, message = "附件说明不能超过2000个字符")
+    private String attachmentNote;
+
     @Size(max = 100, message = "作者不能超过100个字符")
     private String author;
 
