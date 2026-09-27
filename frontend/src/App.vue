@@ -12,26 +12,27 @@ const user = ref<any>(null)
 const menuItems = computed(() => {
   const baseItems = [
     { path: '/dashboard', label: '数据概览' },
-    { path: '/scripts', label: '脚本列表' },
-    { path: '/script/create', label: '脚本录入' },
+    { path: '/scripts', label: '脚本列表（脱敏）' },
     { path: '/statistics', label: '统计分析' },
     { path: '/comments', label: '意见汇总' }
   ]
-  
+
   if (user.value && user.value.role === 'ADMIN') {
+    baseItems.splice(2, 0, { path: '/script/create', label: '脚本录入' })
     baseItems.push(
       { path: '/assignments', label: '分配管理' },
       { path: '/recusals', label: '回避审批' },
       { path: '/judges', label: '评委管理' },
       { path: '/users', label: '用户管理' },
-      { path: '/logs', label: '操作日志' }
+      { path: '/logs', label: '操作日志' },
+      { path: '/desensitization/audits', label: '脱敏审计' }
     )
   } else if (user.value && user.value.role === 'JUDGE') {
     baseItems.push({ path: '/my-recusals', label: '我的回避申请' })
   }
-  
+
   baseItems.push({ path: '/profile', label: '个人信息' })
-  
+
   return baseItems
 })
 

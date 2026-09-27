@@ -3,6 +3,9 @@ SET character_set_client = utf8mb4;
 SET character_set_connection = utf8mb4;
 SET character_set_results = utf8mb4;
 
+DROP TABLE IF EXISTS desensitization_audit;
+DROP TABLE IF EXISTS identity_clue;
+DROP TABLE IF EXISTS identity_group;
 DROP TABLE IF EXISTS recusal_review_log;
 DROP TABLE IF EXISTS recusal_application;
 DROP TABLE IF EXISTS audit_log;
@@ -36,6 +39,10 @@ CREATE TABLE IF NOT EXISTS script (
     description TEXT,
     author VARCHAR(100),
     source VARCHAR(200),
+    contact_info TEXT COMMENT '投稿联系方式：电话/邮箱/社交账号等（原稿，仅管理员受控可见）',
+    attachment_note TEXT COMMENT '附件说明（原稿，仅管理员受控可见）',
+    mask_salt VARCHAR(16) NOT NULL COMMENT '本脚本脱敏代号随机盐：保证跨脚本代号不可横向关联',
+    analyze_version VARCHAR(64) NULL COMMENT '最近一次身份识别对应的原稿指纹；原稿变更后自动重新识别',
     status VARCHAR(30) DEFAULT 'PENDING' COMMENT 'PENDING/REVIEWING/PENDING_SUPPLEMENT/GRADED',
     grade VARCHAR(10),
     total_score DOUBLE,
@@ -43,6 +50,56 @@ CREATE TABLE IF NOT EXISTS script (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (creator_id) REFERENCES `user`(id)
+);
+
+-- 身份分组：同一脚本内同一投稿身份的所有线索归入同一分组并共用代号；
+-- 分组仅隶属于单个脚本（script_id + cluster_key 唯一），跨脚本不复用、不可横向关联。
+CREATE TABLE IF NOT EXISTS identity_group (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    cluster_key VARCHAR(120) NOT NULL COMMENT '脚本内稳定归并键：类型:归一化原文',
+    clue_type VARCHAR(30) NOT NULL COMMENT 'NAME/PHONE/EMAIL/ACCOUNT/ORGANIZATION',
+    label_letter VARCHAR(8) NOT NULL COMMENT '脚本内稳定代号字母：A/B/C…（按首次识别顺序）',
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING待核对/CONFIRMED_IDENTITY确认投稿身份/CONFIRMED_CHARACTER确认剧情人物',
+    representative VARCHAR(255) NOT NULL COMMENT '该身份的代表性原文（姓名/机构全称/号码等）',
+    decided_by BIGINT NULL COMMENT '最近一次核对管理员',
+    decided_by_name VARCHAR(100) NULL,
+    decided_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_group_script_key (script_id, cluster_key),
+    KEY idx_group_script (script_id)
+);
+
+-- 身份线索：系统在元数据/标题/正文/附件说明/联系方式中识别到的每一处可定位投稿人的片段。
+CREATE TABLE IF NOT EXISTS identity_clue (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    group_id BIGINT NOT NULL,
+    field_name VARCHAR(30) NOT NULL COMMENT 'AUTHOR/SOURCE/CONTACT_INFO/TITLE/DESCRIPTION/ATTACHMENT_NOTE',
+    start_offset INT NOT NULL COMMENT '所属文本字段中的起始下标（含）',
+    end_offset INT NOT NULL COMMENT '所属文本字段中的结束下标（不含）',
+    matched_text VARCHAR(255) NOT NULL COMMENT '识别到的原文片段',
+    detect_reason VARCHAR(60) NOT NULL COMMENT '识别依据：METADATA/PATTERN/NAME_CONTEXT/NAME_BARE',
+    ordinal INT NOT NULL COMMENT '全脚本扫描顺序，用于稳定分配代号字母',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_clue_span (script_id, field_name, start_offset, end_offset),
+    KEY idx_clue_group (group_id),
+    KEY idx_clue_script (script_id)
+);
+
+-- 脱敏查看审计：谁在何时查看过原稿/代号映射/核对结果。
+CREATE TABLE IF NOT EXISTS desensitization_audit (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    action VARCHAR(40) NOT NULL COMMENT 'VIEW_RAW 查看原稿 / VIEW_MAP 查看代号映射 / DECIDE_GROUP 核对身份',
+    viewer_id BIGINT,
+    viewer_name VARCHAR(100),
+    ip_address VARCHAR(50),
+    detail TEXT COMMENT '动作详情（如核对的分组ID与结论）',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_mask_audit_script (script_id),
+    KEY idx_mask_audit_created (created_at)
 );
 
 CREATE TABLE IF NOT EXISTS judge (
@@ -178,12 +235,18 @@ INSERT IGNORE INTO judge (id, name, role, user_id, expertise, status) VALUES
 (4, '赵评委', 'JUDGE', 7, '旅游、搞笑、美食类脚本', 'ACTIVE'),
 (5, '孙评委', 'JUDGE', 8, '情感、搞笑、生活类脚本', 'ACTIVE');
 
-INSERT IGNORE INTO script (id, title, genre, duration, target_audience, description, author, source, status, grade, total_score, creator_id) VALUES
-(1, '职场逆袭记', '情感', 120, '职场人士', '讲述一个普通员工通过努力实现职场逆袭的故事，充满正能量。', '张三', '内部投稿', 'GRADED', 'A', 82.5, 1),
-(2, '美食探秘：深夜食堂', '美食', 90, '青年', '探访城市中的隐秘美食小店，记录美食背后的故事。', '李四', '外部投稿', 'GRADED', 'S', 94.3, 1),
-(3, '科技前沿：AI时代', '科技', 150, '青少年', '介绍人工智能的最新发展和应用，探讨未来科技趋势。', '王五', '内部投稿', 'GRADED', 'B', 68.2, 1),
-(4, '旅行日记：海岛奇遇', '旅游', 180, '青年', '记录海岛旅行的精彩瞬间，展现大自然的美丽。', '赵六', '外部投稿', 'REVIEWING', NULL, NULL, 1),
-(5, '搞笑日常：办公室趣事', '搞笑', 60, '青年', '讲述办公室里发生的搞笑故事，轻松幽默。', '孙七', '内部投稿', 'PENDING', NULL, NULL, 1);
+INSERT IGNORE INTO script (id, title, genre, duration, target_audience, description, author, source, contact_info, attachment_note, mask_salt, status, grade, total_score, creator_id) VALUES
+(1, '职场逆袭记', '情感', 120, '职场人士', '讲述一个普通员工通过努力实现职场逆袭的故事，充满正能量。', '张三', '内部投稿', NULL, NULL, 'S1A0001', 'GRADED', 'A', 82.5, 1),
+(2, '美食探秘：深夜食堂', '美食', 90, '青年', '探访城市中的隐秘美食小店，记录美食背后的故事。', '李四', '外部投稿', NULL, NULL, 'S2B0002', 'GRADED', 'S', 94.3, 1),
+(3, '科技前沿：AI时代', '科技', 150, '青少年', '介绍人工智能的最新发展和应用，探讨未来科技趋势。', '王五', '内部投稿', NULL, NULL, 'S3C0003', 'GRADED', 'B', 68.2, 1),
+(4, '旅行日记：海岛奇遇', '旅游', 180, '青年', '记录海岛旅行的精彩瞬间，展现大自然的美丽。', '赵六', '外部投稿', NULL, NULL, 'S4D0004', 'REVIEWING', NULL, NULL, 1),
+(5, '搞笑日常：办公室趣事', '搞笑', 60, '青年', '讲述办公室里发生的搞笑故事，轻松幽默。', '孙七', '内部投稿', NULL, NULL, 'S5E0005', 'PENDING', NULL, NULL, 1),
+(6, '刘雨桐的北漂日记', '生活', 90, '青年',
+ '编剧刘雨桐根据亲身经历创作。开场刘雨桐在出租屋接到妈妈电话：“雨桐啊，不行就回家。”镜头一转，刘雨桐挤上早高峰地铁。剧中人物老李是卖煎饼的摊主，每天和顾客小芳开玩笑；室友阿杰劝她转行。片尾字幕：合作请联系编剧微信 liuyutong_vlog 或电话 13912345678，邮箱 yutong.liu@example.com。',
+ '刘雨桐', '成都微光文化传媒有限公司',
+ '联系人：刘雨桐；手机：13912345678；邮箱：yutong.liu@example.com；抖音号：liuyutong_vlog；备用机 010-86551234',
+ '附件：分镜表《刘雨桐北漂分镜终稿.pdf》、授权书（成都微光文化传媒有限公司盖章扫描件）。素材下载链接 pan.example.com/u/liuyutong2026',
+ 'S6F0006', 'REVIEWING', NULL, NULL, 1);
 
 INSERT IGNORE INTO score (id, script_id, judge_id, creativity_score, commercial_score, difficulty_score, logic_score, audience_score, comment, is_extreme, valid) VALUES
 (1, 1, 1, 8, 7, 6, 9, 8, '故事结构完整，情感真挚，建议增加更多职场细节。', 0, 1),

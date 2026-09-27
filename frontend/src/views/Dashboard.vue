@@ -124,7 +124,7 @@ onMounted(() => {
         </ElCard>
       </ElCol>
       <ElCol :span="12">
-        <ElCard title="最新脚本" shadow="never">
+        <ElCard title="最新脚本（标题已脱敏）" shadow="never">
           <div class="space-y-3">
             <div 
               v-for="script in recentScripts" 

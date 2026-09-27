@@ -25,6 +25,7 @@ public class StatisticsService {
     private final ScriptRepository scriptRepository;
     private final ScoreRepository scoreRepository;
     private final JudgeRepository judgeRepository;
+    private final DesensitizationService desensitizationService;
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public List<GradeDistributionResponse> getGradeDistribution() {
@@ -49,13 +50,13 @@ public class StatisticsService {
         return result;
     }
 
-    public List<LowScoreCommentResponse> getLowScoreComments() {
+    public List<LowScoreCommentResponse> getLowScoreComments(com.example.scriptreview.entity.User viewer) {
         List<Script> lowScoreScripts = scriptRepository.findByGradeIn(Arrays.asList("C", "B"));
-        
+
         return lowScoreScripts.stream()
                 .map(script -> {
                     List<Score> scores = scoreRepository.findByScriptId(script.getId());
-                    
+
                     List<LowScoreCommentResponse.CommentDetail> comments = scores.stream()
                             .filter(score -> Boolean.TRUE.equals(score.getValid()))
                             .filter(score -> score.getComment() != null && !score.getComment().isEmpty())
@@ -73,7 +74,8 @@ public class StatisticsService {
 
                     return LowScoreCommentResponse.builder()
                             .scriptId(script.getId())
-                            .scriptTitle(script.getTitle())
+                            // 查看员可见该出口：标题同样必须是脱敏版本
+                            .scriptTitle(desensitizationService.maskTitleFor(script, viewer))
                             .totalScore(script.getTotalScore())
                             .grade(script.getGrade())
                             .comments(comments)

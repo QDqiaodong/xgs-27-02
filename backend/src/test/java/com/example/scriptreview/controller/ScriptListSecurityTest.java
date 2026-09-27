@@ -76,6 +76,7 @@ class ScriptListSecurityTest {
     private void saveScript(String title, String genre, String status, String grade, LocalDateTime createdAt) {
         scriptRepository.save(Script.builder()
                 .title(title).genre(genre).duration(60).targetAudience("青年")
+                .maskSalt("SECSALT" + title.hashCode())
                 .status(status).grade(grade)
                 .createdAt(createdAt).updatedAt(createdAt)
                 .build());

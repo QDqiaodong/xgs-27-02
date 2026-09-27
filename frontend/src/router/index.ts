@@ -96,6 +96,12 @@ const routes: RouteRecordRaw[] = [
     name: 'AuditLogs',
     component: () => import('@/views/AuditLogs.vue'),
     meta: { requiresAuth: true, roles: ['ADMIN'] }
+  },
+  {
+    path: '/desensitization/audits',
+    name: 'DesensitizationAudits',
+    component: () => import('@/views/DesensitizationAudits.vue'),
+    meta: { requiresAuth: true, roles: ['ADMIN'] }
   }
 ]
 

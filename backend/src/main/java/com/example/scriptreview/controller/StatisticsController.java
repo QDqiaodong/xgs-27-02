@@ -27,7 +27,9 @@ public class StatisticsController {
 
     @GetMapping("/low-score-comments")
     public ResponseEntity<List<LowScoreCommentResponse>> getLowScoreComments() {
-        List<LowScoreCommentResponse> response = statisticsService.getLowScoreComments();
+        com.example.scriptreview.entity.User currentUser =
+                com.example.scriptreview.util.SecurityUtils.getCurrentUser();
+        List<LowScoreCommentResponse> response = statisticsService.getLowScoreComments(currentUser);
         return ResponseEntity.ok(response);
     }
 

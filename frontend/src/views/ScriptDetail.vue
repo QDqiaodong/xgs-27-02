@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import {
-  ElButton, ElCard, ElTag, ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption
+  ElButton, ElCard, ElTag, ElMessage, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption,
+  ElAlert, ElEmpty
 } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
-import { getScriptById } from '@/api/script'
+import { getScriptById, getRawScript, getIdentityMap, decideIdentityGroup } from '@/api/script'
 import { getScoresByScriptId, calculateGrade } from '@/api/score'
 import { getRecusalsByScript, createRecusal } from '@/api/recusal'
 import { getMyJudgeProfile, getJudges } from '@/api/judge'
 import { getAssignmentsByScriptId } from '@/api/assignment'
 import type {
-  ScriptResponse, ScoreResponse, RecusalApplicationResponse,
+  ScriptResponse, ScriptRawResponse, IdentityMapResponse, ScoreResponse, RecusalApplicationResponse,
   JudgeResponse, ScriptAssignmentResponse, RecusalType
 } from '@/types'
 
@@ -22,10 +23,12 @@ const recusals = ref<RecusalApplicationResponse[]>([])
 const assignments = ref<ScriptAssignmentResponse[]>([])
 const loading = ref(false)
 const currentUser = ref<any>(JSON.parse(localStorage.getItem('user') || 'null'))
+const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
 
 const scriptId = Number(route.params.id)
 
 const validScores = computed(() => scores.value.filter(s => s.valid))
+const pendingCount = computed(() => script.value?.pendingCount ?? 0)
 
 const loadScript = async () => {
   loading.value = true
@@ -103,6 +106,68 @@ const recusalStatusMap: Record<string, { label: string; type: 'warning' | 'prima
   REJECTED: { label: '回避申请被驳回', type: 'danger' }
 }
 
+// ===================== 打印（仅脱敏内容可进入打印结果） =====================
+const handlePrint = () => {
+  window.print()
+}
+
+// ===================== 管理员：受控查看原稿（查看即审计） =====================
+const rawDialog = ref(false)
+const rawLoading = ref(false)
+const rawScript = ref<ScriptRawResponse | null>(null)
+
+const openRaw = async () => {
+  rawDialog.value = true
+  rawLoading.value = true
+  rawScript.value = null
+  try {
+    rawScript.value = await getRawScript(scriptId)
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.error || '查看原稿被拒绝')
+    rawDialog.value = false
+  } finally {
+    rawLoading.value = false
+  }
+}
+
+// ===================== 管理员：代号映射核对（查看即审计） =====================
+const mapDialog = ref(false)
+const mapLoading = ref(false)
+const identityMap = ref<IdentityMapResponse | null>(null)
+const decidingGroupId = ref<number | null>(null)
+
+const openMap = async () => {
+  mapDialog.value = true
+  mapLoading.value = true
+  identityMap.value = null
+  try {
+    identityMap.value = await getIdentityMap(scriptId)
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.error || '查看代号映射被拒绝')
+    mapDialog.value = false
+  } finally {
+    mapLoading.value = false
+  }
+}
+
+const decide = async (groupId: number, decision: 'CONFIRMED_IDENTITY' | 'CONFIRMED_CHARACTER') => {
+  decidingGroupId.value = groupId
+  try {
+    identityMap.value = await decideIdentityGroup(scriptId, groupId, decision)
+    ElMessage.success(
+      decision === 'CONFIRMED_IDENTITY'
+        ? '已确认为投稿身份：评委视图使用稳定代号替换'
+        : '已确认为剧情人物：评委视图保留原文'
+    )
+    // 核对只调整脱敏视图，重新加载脚本详情让评委视图结果同步
+    await loadScript()
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.error || '核对失败')
+  } finally {
+    decidingGroupId.value = null
+  }
+}
+
 // ===================== 申报回避 =====================
 const recusalDialog = ref(false)
 const myJudge = ref<JudgeResponse | null>(null)
@@ -164,12 +229,15 @@ onMounted(loadScript)
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between print:hidden">
       <div>
         <h2 class="text-2xl font-bold text-gray-800">脚本详情</h2>
-        <p class="text-gray-500 mt-1">查看脚本完整信息和评审记录</p>
+        <p class="text-gray-500 mt-1">当前展示为双盲脱敏视图，评委与查看员无法获得投稿人身份信息</p>
       </div>
       <div class="flex gap-2">
+        <ElButton type="info" plain @click="handlePrint">打印脱敏视图</ElButton>
+        <ElButton v-if="isAdmin" type="danger" plain @click="openRaw">受控查看原稿</ElButton>
+        <ElButton v-if="isAdmin" type="warning" plain @click="openMap">代号映射核对</ElButton>
         <ElButton type="warning" @click="openRecusal"
           v-if="currentUser?.role === 'JUDGE' || currentUser?.role === 'ADMIN'">
           申报回避
@@ -182,6 +250,23 @@ onMounted(loadScript)
       </div>
     </div>
 
+    <!-- 打印页眉：明确打印结果仍是脱敏视图 -->
+    <div class="hidden print:block mb-4">
+      <h1 class="text-xl font-bold">脚本双盲评审打印件（脱敏）</h1>
+      <p class="text-xs text-gray-500">编号 #{{ script?.id }} · 本打印件不含任何投稿人原始身份信息</p>
+    </div>
+
+    <!-- 待核对提示：评委侧看到的是更保守的隐藏结果 -->
+    <ElAlert v-if="pendingCount > 0"
+      :title="isAdmin
+        ? `有 ${pendingCount} 处可疑身份线索待管理员核对（评委侧已先按保守结果隐藏），请前往“代号映射核对”确认`
+        : `该脚本有 ${pendingCount} 处身份线索正在管理员核对中，相关片段已暂时隐藏，不影响您就脚本内容本身评审`"
+      :type="isAdmin ? 'warning' : 'info'"
+      :closable="false"
+      show-icon
+      class="print:hidden"
+    />
+
     <!-- 待补评提示 -->
     <div v-if="script?.status === 'PENDING_SUPPLEMENT'"
       class="bg-purple-50 border border-purple-200 text-purple-700 rounded-lg px-4 py-3 text-sm">
@@ -190,8 +275,12 @@ onMounted(loadScript)
 
     <div v-if="script" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2">
-        <ElCard title="脚本信息" shadow="never">
+        <ElCard title="脚本信息（脱敏视图）" shadow="never">
           <div class="space-y-4">
+            <div class="flex">
+              <span class="w-24 text-gray-500">编号</span>
+              <span class="font-medium">#{{ script.id }}</span>
+            </div>
             <div class="flex">
               <span class="w-24 text-gray-500">标题</span>
               <span class="font-medium">{{ script.title }}</span>
@@ -209,12 +298,8 @@ onMounted(loadScript)
               <span>{{ script.targetAudience }}</span>
             </div>
             <div class="flex">
-              <span class="w-24 text-gray-500">作者</span>
-              <span>{{ script.author || '未填写' }}</span>
-            </div>
-            <div class="flex">
-              <span class="w-24 text-gray-500">来源机构</span>
-              <span>{{ script.source || '未填写' }}</span>
+              <span class="w-24 text-gray-500">投稿身份</span>
+              <span class="text-gray-400">双盲隐藏中（详见正文中的代号）</span>
             </div>
             <div class="flex">
               <span class="w-24 text-gray-500">状态</span>
@@ -234,8 +319,12 @@ onMounted(loadScript)
               <span class="text-xl font-bold text-primary">{{ script.totalScore ?? '—' }}</span>
             </div>
             <div class="flex flex-col">
-              <span class="w-24 text-gray-500">描述</span>
-              <p class="mt-1">{{ script.description || '无' }}</p>
+              <span class="w-24 text-gray-500">正文</span>
+              <p class="mt-1 whitespace-pre-wrap">{{ script.description || '无' }}</p>
+            </div>
+            <div class="flex flex-col" v-if="script.attachmentNote">
+              <span class="w-24 text-gray-500">附件说明</span>
+              <p class="mt-1 whitespace-pre-wrap">{{ script.attachmentNote }}</p>
             </div>
           </div>
         </ElCard>
@@ -305,7 +394,7 @@ onMounted(loadScript)
               <div v-if="r.substituteJudgeName" class="mt-1 text-xs text-green-600">
                 替补评委：{{ r.substituteJudgeName }}
               </div>
-              <ElButton v-if="currentUser?.role === 'ADMIN'" link type="primary"
+              <ElButton v-if="isAdmin" link type="primary"
                 class="mt-1 p-0" @click="router.push('/recusals')">
                 前往审批处理
               </ElButton>
@@ -314,6 +403,154 @@ onMounted(loadScript)
         </ElCard>
       </div>
     </div>
+
+    <!-- 管理员受控原稿对话框（查看动作已被后端审计；关闭即清空，浏览器后退缓存也不残留原文） -->
+    <ElDialog v-model="rawDialog" title="受控原稿（查看已记录审计）" width="720px"
+      @closed="rawScript = null">
+      <div v-loading="rawLoading">
+        <ElAlert
+          title="此处为原稿，包含完整作者、来源机构、联系方式与正文。本次查看已记录“谁在何时查看过原稿”。"
+          type="error" :closable="false" show-icon class="mb-4"
+        />
+        <template v-if="rawScript">
+          <div class="space-y-3 text-sm">
+            <div class="flex"><span class="w-24 text-gray-500">标题</span><span class="font-medium">{{ rawScript.title }}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500">作者</span><span class="text-red-700 font-medium">{{ rawScript.author || '未填写' }}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500">来源机构</span><span class="text-red-700 font-medium">{{ rawScript.source || '未填写' }}</span></div>
+            <div class="flex flex-col">
+              <span class="w-24 text-gray-500">联系方式</span>
+              <p class="mt-1 whitespace-pre-wrap text-red-700 bg-red-50 p-2 rounded">{{ rawScript.contactInfo || '未填写' }}</p>
+            </div>
+            <div class="flex flex-col">
+              <span class="w-24 text-gray-500">正文原文</span>
+              <p class="mt-1 whitespace-pre-wrap">{{ rawScript.description || '无' }}</p>
+            </div>
+            <div class="flex flex-col">
+              <span class="w-24 text-gray-500">附件说明原文</span>
+              <p class="mt-1 whitespace-pre-wrap">{{ rawScript.attachmentNote || '无' }}</p>
+            </div>
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <ElButton @click="rawDialog = false">关闭</ElButton>
+        <ElButton type="warning" @click="openMap">前往代号映射核对</ElButton>
+      </template>
+    </ElDialog>
+
+    <!-- 管理员代号映射核对对话框：原始内容 / 识别线索 / 脱敏结果 三区分明；关闭即清空 -->
+    <ElDialog v-model="mapDialog" title="原稿—代号映射核对" width="860px" top="6vh"
+      @closed="identityMap = null">
+      <div v-loading="mapLoading">
+        <template v-if="identityMap">
+          <ElAlert
+            title="核对结论只调整脱敏视图与代号映射，不会改写原稿。评委在核对完成前看到的始终是保守隐藏结果。"
+            type="warning" :closable="false" show-icon class="mb-4"
+          />
+
+          <!-- 第一区：原始内容 -->
+          <ElCard shadow="never" class="mb-4 border-red-200">
+            <template #header><span class="text-red-700 font-medium">① 原始内容（原稿）</span></template>
+            <div class="space-y-2 text-sm">
+              <div class="flex"><span class="w-24 text-gray-500">标题</span><span>{{ identityMap.raw.title }}</span></div>
+              <div class="flex"><span class="w-24 text-gray-500">作者</span><span class="text-red-700">{{ identityMap.raw.author || '未填写' }}</span></div>
+              <div class="flex"><span class="w-24 text-gray-500">来源机构</span><span class="text-red-700">{{ identityMap.raw.source || '未填写' }}</span></div>
+              <div class="flex flex-col">
+                <span class="w-24 text-gray-500">联系方式</span>
+                <p class="mt-1 whitespace-pre-wrap text-red-700 bg-red-50 p-2 rounded">{{ identityMap.raw.contactInfo || '未填写' }}</p>
+              </div>
+              <div class="flex flex-col">
+                <span class="w-24 text-gray-500">正文</span>
+                <p class="mt-1 whitespace-pre-wrap">{{ identityMap.raw.description || '无' }}</p>
+              </div>
+              <div class="flex flex-col" v-if="identityMap.raw.attachmentNote">
+                <span class="w-24 text-gray-500">附件说明</span>
+                <p class="mt-1 whitespace-pre-wrap">{{ identityMap.raw.attachmentNote }}</p>
+              </div>
+            </div>
+          </ElCard>
+
+          <!-- 第二区：识别出的线索与身份分组 -->
+          <ElCard shadow="never" class="mb-4">
+            <template #header>
+              <span class="font-medium">② 识别出的线索与代号（{{ identityMap.groups.length }} 个身份，待核对 {{ identityMap.pendingCount }} 处）</span>
+            </template>
+            <div v-if="identityMap.groups.length === 0"><ElEmpty description="未识别到身份线索" :image-size="60" /></div>
+            <div v-else class="space-y-3">
+              <div v-for="g in identityMap.groups" :key="g.id"
+                class="border rounded-lg p-3"
+                :class="g.status === 'PENDING' ? 'border-yellow-300 bg-yellow-50'
+                  : g.status === 'CONFIRMED_CHARACTER' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <div class="text-sm">
+                    <ElTag size="small" :type="g.status === 'PENDING' ? 'warning'
+                      : g.status === 'CONFIRMED_CHARACTER' ? 'success' : 'primary'">
+                      {{ g.statusLabel }}
+                    </ElTag>
+                    <span class="ml-2 font-medium">{{ g.clueTypeLabel }} · {{ g.representative }}</span>
+                    <span class="ml-2 text-xs text-gray-500">{{ g.clueTypeLabel }}代号：{{ g.code }}</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <ElButton size="small" type="primary" :loading="decidingGroupId === g.id"
+                      @click="decide(g.id, 'CONFIRMED_IDENTITY')">
+                      确认为投稿身份
+                    </ElButton>
+                    <ElButton size="small" type="success" :loading="decidingGroupId === g.id"
+                      @click="decide(g.id, 'CONFIRMED_CHARACTER')">
+                      确认为剧情人物
+                    </ElButton>
+                  </div>
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                  共 {{ g.clueCount }} 处出现：
+                  <span v-for="c in g.clues" :key="c.id">
+                    <ElTag size="small" effect="plain" class="mr-1">{{ c.fieldLabel }}：{{ c.matchedText }}</ElTag>
+                  </span>
+                  <span class="block mt-1">识别依据：{{ g.detectReasonLabel }}</span>
+                  <span v-if="g.decidedByName" class="block mt-1 text-gray-400">
+                    最近核对：{{ g.decidedByName }} · {{ g.decidedAt }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </ElCard>
+
+          <!-- 第三区：脱敏结果 -->
+          <ElCard shadow="never" class="mb-4 border-blue-200">
+            <template #header><span class="text-blue-700 font-medium">③ 评委/查看员看到的脱敏结果</span></template>
+            <div class="space-y-2 text-sm">
+              <div class="flex"><span class="w-24 text-gray-500">标题</span><span>{{ identityMap.masked.title }}</span></div>
+              <div class="flex"><span class="w-24 text-gray-500">投稿身份</span><span>{{ identityMap.masked.authorCode || '（无作者字段）' }}</span></div>
+              <div class="flex"><span class="w-24 text-gray-500">来源机构</span><span>{{ identityMap.masked.sourceCode || '（无机构线索）' }}</span></div>
+              <div class="flex flex-col">
+                <span class="w-24 text-gray-500">正文</span>
+                <p class="mt-1 whitespace-pre-wrap">{{ identityMap.masked.description || '无' }}</p>
+              </div>
+              <div class="flex flex-col" v-if="identityMap.masked.attachmentNote">
+                <span class="w-24 text-gray-500">附件说明</span>
+                <p class="mt-1 whitespace-pre-wrap">{{ identityMap.masked.attachmentNote }}</p>
+              </div>
+            </div>
+          </ElCard>
+
+          <!-- 审计轨迹 -->
+          <ElCard shadow="never">
+            <template #header><span class="font-medium">查看/核对审计（最近 {{ identityMap.recentAudits.length }} 条）</span></template>
+            <div v-if="identityMap.recentAudits.length === 0" class="text-xs text-gray-400">暂无记录</div>
+            <ul v-else class="text-xs text-gray-600 space-y-1">
+              <li v-for="a in identityMap.recentAudits" :key="a.id">
+                {{ a.createdAt }} · {{ a.viewerName }} · {{ a.actionLabel }}
+                <span v-if="a.ipAddress">（{{ a.ipAddress }}）</span>
+                <span v-if="a.detail">：{{ a.detail }}</span>
+              </li>
+            </ul>
+          </ElCard>
+        </template>
+      </div>
+      <template #footer>
+        <ElButton @click="mapDialog = false">关闭</ElButton>
+      </template>
+    </ElDialog>
 
     <!-- 申报回避对话框 -->
     <ElDialog v-model="recusalDialog" title="申报利益冲突回避" width="540px">
@@ -341,7 +578,7 @@ onMounted(loadScript)
         </ElFormItem>
         <ElFormItem label="可核验依据" required>
           <ElInput v-model="recusalForm.evidence" type="textarea" :rows="3"
-            placeholder="请提供可核验的依据，如任职证明、合同编号、亲属关系说明等" />
+            placeholder="请提供可核验的依据，如任职证明、合同编号、亲属关系说明等（评委侧脚本不会暴露作者身份，请依据脱敏代号申报）" />
         </ElFormItem>
       </ElForm>
       <p class="text-xs text-gray-400">

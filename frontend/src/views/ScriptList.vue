@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElSelect, ElOption, ElPagination, ElMessage, ElDialog } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { getScripts, deleteScript } from '@/api/script'
@@ -18,6 +18,8 @@ const genreFilter = ref('')
 const loading = ref(false)
 const deleteDialog = ref(false)
 const deleteId = ref<number | null>(null)
+const currentUser = ref<any>(JSON.parse(localStorage.getItem('user') || 'null'))
+const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
 
 // 请求序号：只有最新一次请求的响应允许更新列表，
 // 加载慢的旧请求晚返回时不得覆盖用户最后选择的筛选状态
@@ -238,9 +240,9 @@ onMounted(() => {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-2xl font-bold text-gray-800">脚本列表</h2>
-        <p class="text-gray-500 mt-1">短视频投稿脚本管理</p>
+        <p class="text-gray-500 mt-1">列表标题为双盲脱敏视图；原稿作者、来源机构与联系方式不在任何列表/详情响应中</p>
       </div>
-      <ElButton type="primary" @click="router.push('/script/create')">
+      <ElButton v-if="isAdmin" type="primary" @click="router.push('/script/create')">
         录入脚本
       </ElButton>
     </div>
@@ -276,8 +278,15 @@ onMounted(() => {
       </div>
 
       <ElTable :data="scripts" v-loading="loading" border stripe>
-        <ElTableColumn prop="id" label="ID" width="80" />
-        <ElTableColumn prop="title" label="脚本标题" min-width="200" />
+        <ElTableColumn prop="id" label="编号" width="80" />
+        <ElTableColumn prop="title" label="脚本标题（脱敏）" min-width="220">
+          <template #default="{ row }">
+            <span>{{ row.title }}</span>
+            <ElTag v-if="row.pendingCount > 0" size="small" type="warning" class="ml-2">
+              {{ row.pendingCount }} 处待核对
+            </ElTag>
+          </template>
+        </ElTableColumn>
         <ElTableColumn prop="genre" label="题材" width="100" />
         <ElTableColumn prop="duration" label="时长(秒)" width="100" />
         <ElTableColumn prop="targetAudience" label="目标受众" width="120" />
@@ -307,11 +316,11 @@ onMounted(() => {
         </ElTableColumn>
         <ElTableColumn prop="totalScore" label="总分" width="100" />
         <ElTableColumn prop="createdAt" label="创建时间" width="160" />
-        <ElTableColumn label="操作" width="200">
+        <ElTableColumn label="操作" width="220">
           <template #default="{ row }">
-            <ElButton size="small" @click="handleView(row.id)">查看</ElButton>
-            <ElButton size="small" type="primary" @click="handleScore(row.id)">打分</ElButton>
-            <ElButton size="small" type="danger" @click="handleDelete(row.id)">删除</ElButton>
+            <ElButton size="small" @click="handleView(row.id)">查看脱敏详情</ElButton>
+            <ElButton v-if="currentUser?.role !== 'VIEWER'" size="small" type="primary" @click="handleScore(row.id)">打分</ElButton>
+            <ElButton v-if="isAdmin" size="small" type="danger" @click="handleDelete(row.id)">删除</ElButton>
           </template>
         </ElTableColumn>
       </ElTable>

@@ -33,6 +33,13 @@ public class ScriptAssignmentService {
     private final JudgeRepository judgeRepository;
     private final UserRepository userRepository;
     private final ScriptStatusService scriptStatusService;
+    private final DesensitizationService desensitizationService;
+
+    /** 分配操作只能由管理员发起，返回标题保持原文；未找到用户时按管理员占位处理。 */
+    private User adminUser(Long adminId) {
+        return userRepository.findById(adminId).orElseGet(() ->
+                User.builder().id(adminId).role("ADMIN").name("管理员").build());
+    }
 
     @Transactional
     public List<ScriptAssignmentResponse> assignScript(AssignScriptRequest request, Long assignedBy) {
@@ -62,7 +69,7 @@ public class ScriptAssignmentService {
                     .build();
 
             ScriptAssignment saved = assignmentRepository.save(assignment);
-            responses.add(toResponse(saved));
+            responses.add(toResponse(saved, adminUser(assignedBy)));
         }
 
         scriptStatusService.recomputeStatus(request.getScriptId());
@@ -102,19 +109,19 @@ public class ScriptAssignmentService {
 
         return assignments.stream()
                 .filter(a -> isAdmin || a.getJudgeId().equals(selfJudgeId))
-                .map(this::toResponse)
+                .map(a -> toResponse(a, currentUser))
                 .collect(Collectors.toList());
     }
 
-    public List<ScriptAssignmentResponse> getAssignmentsByScriptId(Long scriptId) {
+    public List<ScriptAssignmentResponse> getAssignmentsByScriptId(Long scriptId, User currentUser) {
         return assignmentRepository.findByScriptId(scriptId).stream()
-                .map(this::toResponse)
+                .map(a -> toResponse(a, currentUser))
                 .collect(Collectors.toList());
     }
 
-    public List<ScriptAssignmentResponse> getAssignmentsByJudgeId(Long judgeId) {
+    public List<ScriptAssignmentResponse> getAssignmentsByJudgeId(Long judgeId, User currentUser) {
         return assignmentRepository.findByJudgeId(judgeId).stream()
-                .map(this::toResponse)
+                .map(a -> toResponse(a, currentUser))
                 .collect(Collectors.toList());
     }
 
@@ -127,10 +134,11 @@ public class ScriptAssignmentService {
         assignmentRepository.save(assignment);
     }
 
-    private ScriptAssignmentResponse toResponse(ScriptAssignment assignment) {
-        String scriptTitle = scriptRepository.findById(assignment.getScriptId())
-                .map(Script::getTitle)
-                .orElse("未知脚本");
+    private ScriptAssignmentResponse toResponse(ScriptAssignment assignment, User viewer) {
+        Script scriptEntity = scriptRepository.findById(assignment.getScriptId()).orElse(null);
+        // 分配记录中的脚本标题对评委/查看员脱敏，管理员保留原标题
+        String scriptTitle = scriptEntity == null ? "未知脚本"
+                : desensitizationService.maskTitleFor(scriptEntity, viewer);
 
         String judgeName = judgeRepository.findById(assignment.getJudgeId())
                 .map(Judge::getName)

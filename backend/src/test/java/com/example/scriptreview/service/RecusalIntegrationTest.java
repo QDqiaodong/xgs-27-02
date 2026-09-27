@@ -72,7 +72,8 @@ class RecusalIntegrationTest {
 
         script = scriptRepository.save(Script.builder()
                 .title("测试情感脚本").genre("情感").duration(60).targetAudience("青年")
-                .author("作者甲").source("某MCN机构").status("REVIEWING").build());
+                .author("作者甲").source("某MCN机构").maskSalt("RECUSALT1")
+                .status("REVIEWING").build());
 
         dimensionWeightRepository.save(DimensionWeight.builder().dimensionName("creativity").weight(0.25).build());
         dimensionWeightRepository.save(DimensionWeight.builder().dimensionName("commercial").weight(0.20).build());

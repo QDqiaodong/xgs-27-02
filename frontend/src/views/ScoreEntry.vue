@@ -165,11 +165,24 @@ onMounted(loadData)
 
     <div v-if="script" class="bg-white rounded-xl shadow-sm p-6">
       <div class="mb-6 pb-6 border-b">
-        <h3 class="text-lg font-semibold">{{ script.title }}</h3>
+        <div class="flex items-center gap-2 mb-2">
+          <h3 class="text-lg font-semibold">{{ script.title }}</h3>
+          <ElTag size="small" type="info">双盲脱敏</ElTag>
+          <ElTag v-if="script.pendingCount && script.pendingCount > 0" size="small" type="warning">
+            {{ script.pendingCount }} 处身份线索待管理员核对
+          </ElTag>
+        </div>
         <div class="flex gap-4 mt-2 text-sm text-gray-500">
           <span>题材: {{ script.genre }}</span>
           <span>时长: {{ script.duration }}秒</span>
           <span>受众: {{ script.targetAudience }}</span>
+        </div>
+        <p class="mt-3 text-xs text-gray-400">
+          您看到的标题与正文均为脱敏视图：投稿人的姓名、机构、电话、邮箱、社交账号已替换为稳定代号；
+          与投稿身份无关的剧情人物姓名保留以保证脚本可读性。
+        </p>
+        <div v-if="script.description" class="mt-3 text-sm text-gray-700 whitespace-pre-wrap border-l-2 border-gray-200 pl-3">
+          {{ script.description }}
         </div>
       </div>
 

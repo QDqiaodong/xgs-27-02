@@ -37,6 +37,7 @@ public class RecusalService {
     private final JudgeRepository judgeRepository;
     private final UserRepository userRepository;
     private final ScriptStatusService scriptStatusService;
+    private final DesensitizationService desensitizationService;
 
     // ============================ 申报 ============================
 
@@ -486,8 +487,10 @@ public class RecusalService {
     private RecusalApplicationResponse toResponse(RecusalApplication app, User currentUser) {
         boolean sensitive = canViewSensitive(app, currentUser);
 
-        String scriptTitle = scriptRepository.findById(app.getScriptId())
-                .map(Script::getTitle).orElse("未知脚本");
+        Script scriptEntity = scriptRepository.findById(app.getScriptId()).orElse(null);
+        // 评委/查看员看到的脚本标题同样经过脱敏，管理员保留原标题
+        String scriptTitle = scriptEntity == null ? "未知脚本"
+                : desensitizationService.maskTitleFor(scriptEntity, currentUser);
         String judgeName = judgeRepository.findById(app.getJudgeId())
                 .map(Judge::getName).orElse("未知评委");
         String submitterName = userRepository.findById(app.getSubmittedBy())

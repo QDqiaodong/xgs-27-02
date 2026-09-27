@@ -17,3 +17,33 @@ body {
 #app {
   min-height: 100vh;
 }
+
+/* ===================== 双盲脱敏打印 =====================
+   打印结果只允许包含页面上已渲染的脱敏视图：
+   - 隐藏侧栏、操作按钮、管理员原稿/映射对话框（即使对话框打开，原稿也不进入打印输出）；
+   - 评委无法通过浏览器“打印 → 另存为 PDF”取得页面上本不可见的原始身份信息。 */
+@media print {
+  aside,
+  .print\:hidden,
+  .el-overlay,
+  .el-dialog__wrapper,
+  .el-message,
+  .el-pagination,
+  header {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .el-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+}

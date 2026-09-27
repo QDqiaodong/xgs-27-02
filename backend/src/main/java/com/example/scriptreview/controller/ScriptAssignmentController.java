@@ -39,13 +39,17 @@ public class ScriptAssignmentController {
 
     @GetMapping("/script/{scriptId}")
     public ResponseEntity<List<ScriptAssignmentResponse>> getAssignmentsByScriptId(@PathVariable Long scriptId) {
-        List<ScriptAssignmentResponse> response = assignmentService.getAssignmentsByScriptId(scriptId);
+        User currentUser = SecurityUtils.getCurrentUser();
+        List<ScriptAssignmentResponse> response =
+                assignmentService.getAssignmentsByScriptId(scriptId, currentUser);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/judge/{judgeId}")
     public ResponseEntity<List<ScriptAssignmentResponse>> getAssignmentsByJudgeId(@PathVariable Long judgeId) {
-        List<ScriptAssignmentResponse> response = assignmentService.getAssignmentsByJudgeId(judgeId);
+        User currentUser = SecurityUtils.getCurrentUser();
+        List<ScriptAssignmentResponse> response =
+                assignmentService.getAssignmentsByJudgeId(judgeId, currentUser);
         return ResponseEntity.ok(response);
     }
 }

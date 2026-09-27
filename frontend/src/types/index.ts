@@ -5,12 +5,15 @@ export interface ScriptResponse {
   duration: number
   targetAudience: string
   description: string
-  author?: string
-  source?: string
+  attachmentNote?: string | null
   status: 'PENDING' | 'REVIEWING' | 'PENDING_SUPPLEMENT' | 'GRADED'
   grade: string | null
   totalScore: number | null
   validScoreCount?: number
+  /** 恒为 true：所有角色拿到的脚本响应都是脱敏视图 */
+  masked?: boolean
+  /** 待管理员核对的可疑身份数量（评委侧这些片段已被更保守地隐藏） */
+  pendingCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -23,6 +26,89 @@ export interface CreateScriptRequest {
   description?: string
   author?: string
   source?: string
+  contactInfo?: string
+  attachmentNote?: string
+}
+
+/** 管理员受控原稿视图：仅 /scripts/{id}/raw（ADMIN）返回 */
+export interface ScriptRawResponse {
+  id: number
+  title: string
+  genre: string
+  duration: number
+  targetAudience: string
+  author?: string | null
+  source?: string | null
+  contactInfo?: string | null
+  description?: string | null
+  attachmentNote?: string | null
+  status: string
+  grade: string | null
+  totalScore: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IdentityClueView {
+  id: number
+  groupId: number
+  fieldName: string
+  fieldLabel: string
+  startOffset: number
+  endOffset: number
+  matchedText: string
+  reason: string
+  reasonLabel: string
+}
+
+export interface IdentityGroupView {
+  id: number
+  clueType: string
+  clueTypeLabel: string
+  labelLetter: string
+  code: string
+  status: 'PENDING' | 'CONFIRMED_IDENTITY' | 'CONFIRMED_CHARACTER'
+  statusLabel: string
+  representative: string
+  detectReason?: string | null
+  detectReasonLabel?: string | null
+  clueCount: number
+  clues: IdentityClueView[]
+  decidedByName?: string | null
+  decidedAt?: string | null
+}
+
+export interface IdentityMapAuditView {
+  id: number
+  action: string
+  actionLabel: string
+  viewerName: string | null
+  ipAddress: string | null
+  detail: string | null
+  createdAt: string
+}
+
+export interface IdentityMapResponse {
+  scriptId: number
+  scriptSalt: string
+  raw: {
+    title: string
+    author?: string | null
+    source?: string | null
+    contactInfo?: string | null
+    description?: string | null
+    attachmentNote?: string | null
+  }
+  groups: IdentityGroupView[]
+  masked: {
+    title: string
+    description?: string | null
+    attachmentNote?: string | null
+    authorCode?: string | null
+    sourceCode?: string | null
+  }
+  recentAudits: IdentityMapAuditView[]
+  pendingCount: number
 }
 
 export interface JudgeResponse {

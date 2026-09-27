@@ -50,6 +50,7 @@ class ScriptSearchIntegrationTest {
     private Script save(String title, String genre, String status, String grade, LocalDateTime createdAt) {
         Script script = scriptRepository.save(Script.builder()
                 .title(title).genre(genre).duration(60).targetAudience("青年")
+                .maskSalt("SRCH" + Math.abs(title.hashCode()))
                 .status(status).grade(grade)
                 .createdAt(createdAt).updatedAt(createdAt)
                 .build());

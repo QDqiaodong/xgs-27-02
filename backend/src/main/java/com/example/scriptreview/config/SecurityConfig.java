@@ -27,7 +27,16 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/health/**").permitAll()
-                .requestMatchers("/api/scripts/**").hasAnyRole("ADMIN", "JUDGE", "VIEWER")
+                // 原稿与代号映射是管理员受控视图，HTTP 层与服务层双重强制 ADMIN
+                .requestMatchers(org.springframework.http.HttpMethod.GET,
+                        "/api/scripts/*/raw", "/api/scripts/*/identity-map").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.POST,
+                        "/api/scripts/*/identity-groups/*/decision").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/scripts").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/scripts/**").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/scripts/**").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/scripts/**")
+                    .hasAnyRole("ADMIN", "JUDGE", "VIEWER")
                 .requestMatchers("/api/judges/**").hasAnyRole("ADMIN", "JUDGE")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/scores/script/**")
                     .hasAnyRole("ADMIN", "JUDGE", "VIEWER")
@@ -35,6 +44,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/assignments").hasRole("ADMIN")
                 .requestMatchers("/api/assignments/**").hasAnyRole("ADMIN", "JUDGE")
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
+                .requestMatchers("/api/desensitization/**").hasRole("ADMIN")
                 .requestMatchers("/api/statistics/**").hasAnyRole("ADMIN", "VIEWER")
                 .requestMatchers("/api/logs/**").hasRole("ADMIN")
                 .requestMatchers("/api/recusals/**").hasAnyRole("ADMIN", "JUDGE", "VIEWER")
